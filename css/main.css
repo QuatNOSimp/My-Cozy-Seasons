@@ -1,0 +1,61 @@
+:root {
+  --cream: #fdf6e9;
+  --cream2: #f6ead3;
+  --ink: #5c4a3d;
+  --ink-soft: #8a7362;
+  --sage: #a8c686;
+  --sage-dark: #7ba05b;
+  --peach: #f2a154;
+  --rose: #e884a8;
+  --sky: #bfe3f2;
+  --gold: #f5c542;
+  --card: #fffaf0;
+  --shadow: 0 6px 20px rgba(92, 74, 61, 0.18);
+  --radius: 16px;
+}
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1a2332;
+  font-family: "Nunito", "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+}
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#game-container {
+  position: relative;
+  line-height: 0;
+}
+#game-container canvas {
+  border-radius: 10px;
+  box-shadow: 0 12px 60px rgba(0, 0, 0, 0.5);
+}
+#ui-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#ui-root > * {
+  pointer-events: auto;
+}
+img {
+  pointer-events: none;
+}
