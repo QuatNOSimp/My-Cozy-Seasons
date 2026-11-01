@@ -16,8 +16,10 @@ import { onKeyDownOnce } from "../utils/input.js";
 import { EVT, emit } from "../GameEvents.js";
 import SFX from "../SoundFX.js";
 
+// ROOM_H = 12 ô: khớp đúng với lưới gạch sàn (sàn bắt đầu ở y = 96, cao 10 ô)
+// nên không còn dải gạch thừa/bị cắt ở mép dưới.
 const ROOM_W = 14 * T,
-  ROOM_H = 560,
+  ROOM_H = 12 * T,
   WALL_H = 112;
 const TIPS = [
   'Cuốn "Nhật ký vườn": Tưới cây trước 9 giờ sáng là tốt nhất.',
@@ -43,7 +45,8 @@ export class HouseScene extends Phaser.Scene {
     this.solids = this.physics.add.staticGroup();
     this.sittingObj = null;
     this.worldContainer = this.add.container(0, 0);
-    this.cameras.main.setBounds(0, 0, ROOM_W, ROOM_H);
+    // KHÔNG setBounds cho camera: phòng nhỏ hơn khung nhìn (sau khi zoom), Phaser sẽ
+    // ép camera dính góc trên-trái nên phòng bị lệch và lộ vùng trống bên phải.
     this.physics.world.setBounds(0, 0, ROOM_W, ROOM_H);
     this.cameras.main.setBackgroundColor("#241c16");
     this.buildRoom();
@@ -63,10 +66,7 @@ export class HouseScene extends Phaser.Scene {
     SaveSystem.init(this);
     QuestSystem.init(this);
     AchievementSystem.init(this);
-    this.cameras.main.centerOn(ROOM_W / 2, ROOM_H / 2);
-    this.cameras.main.setZoom(
-      Math.min(CONFIG.W / ROOM_W, CONFIG.H / ROOM_H) * 0.98,
-    );
+    this.fitCameraToRoom();
     this.cameras.main.fadeIn(500, 30, 25, 20);
     this.hud.toast(
       this.floor === 1 ? "Tầng 1 · Phòng khách & bếp" : "Tầng 2 · Phòng ngủ",
@@ -76,6 +76,16 @@ export class HouseScene extends Phaser.Scene {
       this.panels?.destroy();
       DialogueUI.forceClose();
     });
+  }
+
+  // Zoom vừa khít cả căn phòng vào màn hình rồi canh giữa.
+  fitCameraToRoom() {
+    const cam = this.cameras.main;
+    const zoom = Math.min(CONFIG.W / ROOM_W, CONFIG.H / ROOM_H) * 0.98;
+    cam.setZoom(zoom);
+    cam.centerOn(ROOM_W / 2, ROOM_H / 2);
+    // zoom lẻ + roundPixels dễ sinh vạch hở giữa các ô gạch
+    cam.roundPixels = false;
   }
 
   put(key, x, y, opts = {}) {
@@ -260,10 +270,17 @@ export class HouseScene extends Phaser.Scene {
 
   sitAt(x, y) {
     if (this.player.sitting) return;
-    this.player.setPosition(x, y);
     this.player.setDepth(9999);
-    this.player.sit();
+    this.player.sit(x, y);
     this.sittingObj = true;
+    this.hud.toast("Nhấn E để đứng dậy");
+  }
+
+  standUp() {
+    if (!this.player.sitting) return;
+    this.player.standUp();
+    this.player.setDepth(Math.round(this.player.y)); // update() sẽ tự sắp xếp lại độ sâu
+    this.sittingObj = null;
   }
 
   sleepInBed() {
@@ -410,14 +427,14 @@ export class HouseScene extends Phaser.Scene {
         DialogueUI.advance();
         return;
       }
-      if (GameState.uiOpen || this.player.locked) return;
+      if (GameState.uiOpen) return;
+      // Kiểm tra "đang ngồi" TRƯỚC "locked": sit() đặt locked = true nên
+      // nếu kiểm tra locked trước thì không bao giờ đứng dậy được.
       if (this.player.sitting) {
-        this.player.standUp();
-        this.player.setDepth(0);
-        this.addDepthSorted(this.player);
-        this.sittingObj = null;
+        this.standUp();
         return;
       }
+      if (this.player.locked) return;
       this.tryInteract();
     });
     onKeyDownOnce(k, "I", () => this.panels.toggleInventory());
