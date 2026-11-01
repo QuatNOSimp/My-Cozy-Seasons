@@ -1,5 +1,5 @@
 import { CONFIG } from "./config.js";
-import { installColorCompat } from "./utils/phaserColorCompat.js";
+import { installColorCompat } from "./utils/phasercolorcompat.js";
 import { BootScene } from "./scenes/BootScene.js";
 import { MenuScene } from "./scenes/MenuScene.js";
 import { GameScene } from "./scenes/GameScene.js";
