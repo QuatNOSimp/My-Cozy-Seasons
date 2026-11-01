@@ -42,14 +42,33 @@ export class HUD {
       <div id="toast-zone"></div>
       <div id="banner"><h2 id="banner-title"></h2><p id="banner-sub"></p></div>`;
     root.appendChild(this.el);
-    this.el.querySelector("#hb-quest").onclick = () =>
-      this.scene.panels.toggleQuest();
-    this.el.querySelector("#hb-inv").onclick = () =>
-      this.scene.panels.toggleInventory();
-    this.el.querySelector("#hb-ach").onclick = () =>
-      this.scene.panels.showAchievements();
-    this.el.querySelector("#hb-menu").onclick = () =>
-      this.scene.panels.showPause();
+    const bind = (selector, fn) => {
+      const el = this.el.querySelector(selector);
+
+      if (!el) {
+        console.warn("[HUD] Không tìm thấy phần tử:", selector);
+        return;
+      }
+
+      el.style.pointerEvents = "auto";
+      el.style.cursor = "pointer";
+
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        if (!this.scene.panels) {
+          console.warn("[HUD] Panels chưa sẵn sàng:", selector);
+          return;
+        }
+
+        fn();
+      });
+    };
+    bind("#hb-quest", () => this.scene.panels.toggleQuest());
+    bind("#hb-inv", () => this.scene.panels.toggleInventory());
+    bind("#hb-ach", () => this.scene.panels.showAchievements());
+    bind("#hb-menu", () => this.scene.panels.showPause());
+    bind("#tb-slot", () => this.scene.panels.toggleInventory());
   }
 
   svgScroll() {
