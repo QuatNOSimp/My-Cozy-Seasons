@@ -27,8 +27,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   buildAnims() {
+    const LOOP_POSES = new Set(["idle", "walk"]);
+
     const mk = (key, frames, rate = 8, repeat = -1) => {
-      if (this.scene.anims.exists(key)) return;
+      if (this.scene.anims.exists(key)) {
+        this.scene.anims.remove(key);
+      }
+
       this.scene.anims.create({
         key,
         frames: frames.map((f) => ({ key: f })),
@@ -36,6 +41,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         repeat,
       });
     };
+
     const poses = {
       idle: 2,
       walk: 4,
@@ -46,7 +52,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       feed: 2,
       cook: 2,
     };
+
     for (const [pose, n] of Object.entries(poses)) {
+      const repeat = LOOP_POSES.has(pose) ? -1 : 0;
+      const rate = pose === "walk" ? 9 : 5;
+
       for (const dir of ["down", "up", "left"]) {
         mk(
           `${this.g}_${pose}_${dir}`,
@@ -54,10 +64,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
             { length: n },
             (_, i) => `pf_${this.g}_${pose}_${dir}_${i}`,
           ),
-          pose === "walk" ? 9 : 5,
+          rate,
+          repeat,
         );
       }
     }
+
     mk(`${this.g}_sleep_down`, [`pf_${this.g}_sleep_down_0`], 1, -1);
     mk(`${this.g}_sit_down`, [`pf_${this.g}_sit_down_0`], 1, 0);
   }
@@ -76,20 +88,46 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   playAction(name, onDone) {
     if (this.locked) return;
-    this.locked = true;
-    this.body.setVelocity(0);
+
     const suffix = this.dirAnimSuffix();
     const key = `${this.g}_${name}_${suffix}`;
-    this.anims.play(key, true);
+
+    // Nếu thiếu animation thì không được khóa player mãi mãi
+    if (!this.scene.anims.exists(key)) {
+      console.warn(`[Player] Thiếu animation hành động: ${key}`);
+      this.anims.play(`${this.g}_idle_${suffix}`, true);
+      onDone?.();
+      return;
+    }
+
+    this.locked = true;
+    this.body.setVelocity(0);
+    this.anims.timeScale = 1;
+
+    // Xóa listener complete cũ nếu có, tránh callback bị gọi chồng
+    this.off(Phaser.Animations.Events.ANIMATION_COMPLETE);
+
+    const finish = () => {
+      this.locked = false;
+      this.anims.play(`${this.g}_idle_${suffix}`, true);
+      onDone?.();
+    };
+
+    // Chơi lần 1
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-      // chơi lần 2 cho mượt rồi kết thúc
+      // Chơi lần 2 cho mượt rồi kết thúc
       this.anims.play(key, true);
+
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-        this.locked = false;
-        this.anims.play(`${this.g}_idle_${suffix}`, true);
-        onDone?.();
+        finish();
       });
     });
+
+    this.anims.play(key, true);
+
+    if (this.anims.currentAnim) {
+      this.anims.currentAnim.repeat = 0;
+    }
   }
 
   playSleep(onDone) {
@@ -99,15 +137,29 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   sit() {
+    if (this.sitting) return;
+
     this.sitting = true;
     this.locked = true;
     this.body.setVelocity(0);
     this.anims.play(`${this.g}_sit_down`, true);
   }
+
   standUp() {
+    if (!this.sitting) return;
+
     this.sitting = false;
     this.locked = false;
+    this.body.setVelocity(0);
     this.anims.play(`${this.g}_idle_${this.dirAnimSuffix()}`, true);
+  }
+
+  toggleSit() {
+    if (this.sitting) {
+      this.standUp();
+    } else {
+      this.sit();
+    }
   }
 
   update(keys) {
