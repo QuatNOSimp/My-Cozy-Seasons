@@ -23,6 +23,7 @@ import { EVT, emit, on, GameEvents } from "../GameEvents.js";
 import { HUD } from "../ui/HUD.js";
 import { Panels } from "../ui/Panels.js";
 import { DialogueUI } from "../ui/DialogueUI.js";
+import { onKeyDownOnce } from "../utils/input.js";
 import SFX from "../SoundFX.js";
 
 export class GameScene extends Phaser.Scene {
@@ -768,7 +769,7 @@ export class GameScene extends Phaser.Scene {
       shift: raw.shift,
     };
 
-    k.on("keydown-E", () => {
+    onKeyDownOnce(k, "E", () => {
       if (DialogueUI.isActive()) {
         DialogueUI.advance();
         return;
@@ -787,12 +788,12 @@ export class GameScene extends Phaser.Scene {
       }
       this.tryInteract();
     });
-    k.on("keydown-I", () => {
+    onKeyDownOnce(k, "I", () => {
       if (!this.placementMode && !FishingSystem.active)
         this.panels.toggleInventory();
     });
-    k.on("keydown-Q", () => this.tryPetPanel());
-    k.on("keydown-ESC", () => {
+    onKeyDownOnce(k, "Q", () => this.tryPetPanel());
+    onKeyDownOnce(k, "ESC", () => {
       if (this.placementMode) {
         this.exitPlacement();
         return;
@@ -808,7 +809,7 @@ export class GameScene extends Phaser.Scene {
       if (this.panels.esc()) return;
       this.panels.showPause();
     });
-    k.on("keydown-P", () => this.takePhoto());
+    onKeyDownOnce(k, "P", () => this.takePhoto());
 
     this.input.on("pointerdown", (ptr) => {
       if (this.placementMode) this.placeDecor(ptr);
