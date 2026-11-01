@@ -1,7 +1,3 @@
-// Toàn bộ texture của game được sinh bằng code tại BootScene.
-// Quy ước key: pf_<gender>_<pose>_<dir>_<frame> | pet_<species>_<coat>_<anim>_<frame>
-//              crop_<id>_<stage> | icon_<id> | tile_* | tree_* | furn_* ...
-
 let G = null; // graphics context dùng chung
 let sceneRef = null;
 
