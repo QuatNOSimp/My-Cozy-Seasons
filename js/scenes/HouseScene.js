@@ -12,6 +12,7 @@ import { itemById, itemName } from "../data/items.js";
 import { HUD } from "../ui/HUD.js";
 import { Panels } from "../ui/Panels.js";
 import { DialogueUI } from "../ui/DialogueUI.js";
+import { onKeyDownOnce } from "../utils/input.js";
 import { EVT, emit } from "../GameEvents.js";
 import SFX from "../SoundFX.js";
 
@@ -404,7 +405,7 @@ export class HouseScene extends Phaser.Scene {
       right: wrap(raw.right, raw.right2),
       shift: raw.shift,
     };
-    k.on("keydown-E", () => {
+    onKeyDownOnce(k, "E", () => {
       if (DialogueUI.isActive()) {
         DialogueUI.advance();
         return;
@@ -419,8 +420,8 @@ export class HouseScene extends Phaser.Scene {
       }
       this.tryInteract();
     });
-    k.on("keydown-I", () => this.panels.toggleInventory());
-    k.on("keydown-ESC", () => {
+    onKeyDownOnce(k, "I", () => this.panels.toggleInventory());
+    onKeyDownOnce(k, "ESC", () => {
       if (this.panels.esc()) return;
       this.panels.showPause();
     });
