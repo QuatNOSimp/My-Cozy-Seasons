@@ -671,9 +671,8 @@ export class GameScene extends Phaser.Scene {
       }),
       onInteract: () => {
         if (d.id === "bench" && !this.player.sitting) {
-          this.player.setPosition(d.x, d.y - 6);
           this.player.setDepth(9999);
-          this.player.sit();
+          this.player.sit(d.x, d.y - 6);
           this.sittingBench = d;
           return;
         }
@@ -778,14 +777,15 @@ export class GameScene extends Phaser.Scene {
         FishingSystem.press();
         return;
       }
-      if (GameState.uiOpen || this.player.locked) return;
+      if (GameState.uiOpen) return;
+      // "đang ngồi" phải được xử lý trước "locked" (sit() đặt locked = true)
       if (this.player.sitting) {
         this.player.standUp();
-        this.player.setDepth(0);
-        this.addDepthSorted(this.player);
+        this.player.setDepth(Math.round(this.player.y));
         this.sittingBench = null;
         return;
       }
+      if (this.player.locked) return;
       this.tryInteract();
     });
     onKeyDownOnce(k, "I", () => {
@@ -935,8 +935,7 @@ export class GameScene extends Phaser.Scene {
     };
     if (this.player.sitting) {
       this.player.standUp();
-      this.player.setDepth(0);
-      this.addDepthSorted(this.player);
+      this.player.setDepth(Math.round(this.player.y));
       this.time.delayedCall(120, doSleep);
     } else doSleep();
   }
