@@ -34,21 +34,37 @@ export class Panels {
 
   open(html, kind) {
     this.close();
+
     const root = document.getElementById("ui-root");
+
     const wrap = document.createElement("div");
     wrap.className = "overlay anim-fade";
     wrap.dataset.kind = kind;
     wrap.innerHTML = `<div class="panel anim-pop">${html}</div>`;
+
+    // Đảm bảo overlay nhận chuột
+    wrap.style.pointerEvents = "auto";
+
+    const panel = wrap.querySelector(".panel");
+    if (panel) {
+      panel.style.pointerEvents = "auto";
+    }
+
     wrap.addEventListener("click", (e) => {
       if (e.target === wrap) this.close();
     });
-    wrap
-      .querySelector(".panel-close")
-      ?.addEventListener("click", () => this.close());
+
+    wrap.querySelector(".panel-close")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.close();
+    });
+
     root.appendChild(wrap);
+
     this.current = wrap;
     GameState.uiOpen = true;
     SFX.blip();
+
     return wrap;
   }
 
