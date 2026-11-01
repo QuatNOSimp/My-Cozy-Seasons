@@ -136,12 +136,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(900, onDone);
   }
 
-  sit() {
+  // Ngồi xuống. Nếu truyền (x, y) thì dịch người chơi tới vị trí ghế.
+  // Vị trí đứng trước đó được nhớ lại để khi đứng dậy không bị kẹt trong
+  // collider của bàn/ghế/sofa.
+  sit(x, y) {
     if (this.sitting) return;
+
+    this.standPos = { x: this.x, y: this.y };
+    if (x !== undefined && y !== undefined) this.setPosition(x, y);
 
     this.sitting = true;
     this.locked = true;
-    this.body.setVelocity(0);
+    this.body.reset(this.x, this.y); // đồng bộ body với sprite, vận tốc = 0
+    this.body.enable = false; // tắt va chạm để ghế không đẩy người chơi ra
     this.anims.play(`${this.g}_sit_down`, true);
   }
 
@@ -150,7 +157,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.sitting = false;
     this.locked = false;
-    this.body.setVelocity(0);
+    if (this.standPos) {
+      this.setPosition(this.standPos.x, this.standPos.y);
+      this.standPos = null;
+    }
+    this.body.enable = true;
+    this.body.reset(this.x, this.y);
     this.anims.play(`${this.g}_idle_${this.dirAnimSuffix()}`, true);
   }
 
