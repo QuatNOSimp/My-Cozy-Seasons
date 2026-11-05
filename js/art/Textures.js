@@ -35,269 +35,730 @@ const ln = (g, pts, c, wdt = 2, a = 1) => {
 };
 
 /* ================= NHÂN VẬT ================= */
-// Vẽ trong hệ toạ độ: chân tại (24, 52), khung 48x58
+// Khung 48x58, chân chạm đất tại (24, 52). Tỉ lệ khoảng 4 đầu rưỡi:
+// đầu nhỏ, có cổ, vai, eo, chân dài. Nữ: vai hẹp, eo thon, mặc váy.
+// Nam: vai rộng hơn, mặc yếm quần. Nhân vật quay trái được lật ra thành quay phải.
+const SKIN_SH = "#e3b088"; // da vùng bóng: cổ, tai, tay xa
+const SHIRT_D = { female: "#cf6c91", male: "#6890c8" };
+const PANTS_D = "#4d6aa5",
+  BOOT_D = "#6f452c",
+  BELT = "#b5587a";
+const BODY = {
+  female: { shoulder: 6, torsoH: 14, legW: 4.4, armW: 3.4, hand: 1.9 },
+  male: { shoulder: 8, torsoH: 15, legW: 5.6, armW: 4.2, hand: 2.2 },
+};
+const HEAD = { rx: 6, ry: 6.8 };
+const FORWARD_POSES = new Set([
+  "water",
+  "harvest",
+  "pet",
+  "feed",
+  "cook",
+  "dig",
+]);
+
+const poly = (g, pts, c, a = 1) => {
+  g.fillStyle(c, a);
+  g.fillPoints(
+    pts.map(([x, y]) => ({ x, y })),
+    true,
+  );
+};
+// Đoạn chi có hai đầu tròn (không phụ thuộc kiểu cap của renderer)
+const limb = (g, x1, y1, x2, y2, w, c) => {
+  ln(
+    g,
+    [
+      [x1, y1],
+      [x2, y2],
+    ],
+    c,
+    w,
+  );
+  ci(g, x1, y1, w / 2, c);
+  ci(g, x2, y2, w / 2, c);
+};
+// Cánh tay: tay áo ngắn (vai → khuỷu) + cẳng tay da (khuỷu → bàn tay)
+const arm = (c, [sx, sy], [ex, ey], [hx, hy], far = false) => {
+  const { g, gender, B } = c;
+  const sleeve = far ? SHIRT_D[gender] : SHIRT[gender];
+  const skin = far ? SKIN_SH : SKIN;
+  limb(g, hx, hy, ex, ey, B.armW - 0.8, skin);
+  limb(g, ex, ey, sx, sy, B.armW, sleeve);
+  ci(g, hx, hy, B.hand, skin);
+};
+
 function drawHuman(g, o) {
   const { gender, dir, pose = "idle", f = 0 } = o;
-  const cx = 24,
-    fy = 52;
-  const walkSwing = pose === "walk" ? Math.sin((f / 4) * Math.PI * 2) : 0;
+  const B = BODY[gender];
+  const cx = 24;
+  const walk = pose === "walk" ? Math.sin((f / 4) * Math.PI * 2) : 0;
   const bob =
     pose === "walk"
-      ? Math.abs(Math.cos((f / 4) * Math.PI * 2)) * 1.6
-      : (f % 2) * 0.8;
+      ? Math.abs(Math.cos((f / 4) * Math.PI * 2)) * 1.4
+      : (f % 2) * 0.7;
   const crouch = pose === "harvest" || pose === "dig" ? 3 : 0;
-  const by = fy - bob + crouch * 0.4; // base y đã dịch
-  const hair = HAIR[gender],
-    shirt = SHIRT[gender];
-  const side = dir === "left" ? -1 : 1;
-  const isSide = dir === "left" || dir === "right";
-  const isBack = dir === "up";
-
-  // --- chân ---
-  const legOff = walkSwing * 4;
-  const legH = 11 - crouch * 0.8;
-  if (!isSide) {
-    rr(
-      g,
-      cx - 8,
-      by - legH - 1 + Math.max(0, legOff) * 0.3,
-      6,
-      legH - Math.max(0, legOff) * 0.3,
-      2,
-      PANTS,
-    );
-    rr(
-      g,
-      cx + 2,
-      by - legH - 1 + Math.max(0, -legOff) * 0.3,
-      6,
-      legH - Math.max(0, -legOff) * 0.3,
-      2,
-      PANTS,
-    );
-    rr(g, cx - 8.5, by - 4, 7, 4.5, 2, BOOT);
-    rr(g, cx + 1.5, by - 4, 7, 4.5, 2, BOOT);
-  } else {
-    rr(g, cx - 3 + legOff, by - legH, 6, legH, 2, PANTS);
-    rr(g, cx - 3 + legOff, by - 4, 7, 4.5, 2, BOOT);
-    rr(g, cx - 3 - legOff * 0.7, by - legH + 1, 6, legH - 1, 2, "#4d6aa5");
-    rr(g, cx - 3.5 - legOff * 0.7, by - 4, 7, 4.5, 2, "#6f452c");
-  }
-
-  // --- thân ---
-  const ty = by - legH - 16;
-  rr(g, cx - 9 + (isSide ? side * 1 : 0), ty, 18, 17, 5, shirt);
-  rr(
+  const by = 52 - bob + crouch * 0.4; // y của gót chân
+  const legH = 19 - crouch * 0.8;
+  const ty = by - legH - B.torsoH; // y của vai
+  const hy = ty - 8.4 + (pose === "dig" && f % 2 === 1 ? 1.5 : 0); // tâm đầu
+  const c = {
     g,
-    cx - 9 + (isSide ? side * 1 : 0),
-    ty + 9,
-    18,
-    8,
-    { bl: 5, br: 5, tl: 0, tr: 0 },
-    PANTS,
-  ); // yếm
-  if (!isBack) {
-    // dây yếm
-    rr(g, cx - 7, ty + 1, 3, 9, 1.5, PANTS);
-    rr(g, cx + 4, ty + 1, 3, 9, 1.5, PANTS);
-  }
-  // bóng thân nhẹ
-  rr(g, cx + (isSide ? side * 1 : 0) + 4, ty + 2, 4, 13, 2, "#000", 0.06);
-
-  // --- tay ---
-  const armY = ty + 3;
-  const holdForward = ["water", "harvest", "pet", "feed", "cook"].includes(
+    gender,
+    B,
+    cx,
+    by,
+    legH,
+    ty,
+    hy,
+    walk,
     pose,
-  );
-  if (holdForward && !isBack) {
-    const reach = pose === "harvest" ? 8 + (f % 2) * 3 : 7;
-    el(
-      g,
-      cx + side * (isSide ? 11 : 0) + (isSide ? 0 : 0),
-      armY + 6,
-      1,
-      1,
-      shirt,
-    ); // gốc tay
-    if (!isSide) {
-      rr(g, cx - 12, armY + 3, 8, 5, 2.5, shirt);
-      rr(g, cx + 4, armY + 3, 8, 5, 2.5, shirt);
-      ci(g, cx - 13, armY + 5.5, 3, SKIN);
-      ci(g, cx + 13, armY + 5.5, 3, SKIN);
-    } else {
-      rr(g, cx + side * 6 - 3, armY + 2, 12 * side, 5, 2.5, shirt);
-      ci(g, cx + side * (6 + reach), armY + 4.5, 3.2, SKIN);
-    }
-  } else {
-    const sw = pose === "walk" ? walkSwing * 3.5 : 0;
-    rr(g, cx - 12, armY + 2 + sw, 5, 11, 2.5, shirt);
-    ci(g, cx - 9.5, armY + 14 + sw, 2.8, SKIN);
-    rr(g, cx + 7, armY + 2 - sw, 5, 11, 2.5, shirt);
-    ci(g, cx + 9.5, armY + 14 - sw, 2.8, SKIN);
-  }
-  if (pose === "dig") {
-    // tay cầm cuốc giơ lên
-    const up = f % 2 === 0;
-    rr(g, cx + 6, armY - (up ? 8 : 0), 5, 12, 2.5, shirt);
-    ci(g, cx + 8.5, armY - (up ? 9 : -2), 3, SKIN);
-  }
-
-  // --- đầu ---
-  const hy = ty - 9 + (pose === "dig" && f % 2 === 1 ? 2 : 0);
-  ci(g, cx, hy, 10.5, SKIN);
-  if (isBack) {
-    ci(g, cx, hy - 0.5, 10.8, hair);
-    if (gender === "female") rr(g, cx - 3, hy + 4, 6, 10, 3, hair);
-  } else {
-    // tóc: mái + đỉnh
-    g.fillStyle(hair, 1);
-    g.fillCircle(cx, hy - 3.2, 10.6);
-    if (!isSide) {
-      g.fillCircle(cx - 8.6, hy - 0.5, 3.4, 1);
-      g.fillCircle(cx + 8.6, hy - 0.5, 3.4, 1);
-    }
-    if (gender === "female") {
-      // tóc dài hai bên
-      rr(g, cx - 12.5, hy - 2, 5, 15, 2.5, hair);
-      rr(g, cx + 7.5, hy - 2, 5, 15, 2.5, hair);
-    }
-    // mặt
-    if (!isSide) {
-      const blink = pose === "idle" && f === 1;
-      if (blink) {
-        ln(
-          g,
-          [
-            [cx - 5, hy + 1.5],
-            [cx - 2, hy + 1.5],
-          ],
-          "#4a3121",
-          1.4,
-        );
-        ln(
-          g,
-          [
-            [cx + 2, hy + 1.5],
-            [cx + 5, hy + 1.5],
-          ],
-          "#4a3121",
-          1.4,
-        );
-      } else {
-        ci(g, cx - 3.6, hy + 1.2, 1.7, "#3a2a20");
-        ci(g, cx + 3.6, hy + 1.2, 1.7, "#3a2a20");
-      }
-      ci(g, cx - 6.2, hy + 4.2, 2, "#f5a0a0", 0.55);
-      ci(g, cx + 6.2, hy + 4.2, 2, "#f5a0a0", 0.55);
-      g.lineStyle(1.4, "#b06a4a", 1);
-      g.beginPath();
-      g.arc(cx, hy + 4.5, 2.6, 0.15 * Math.PI, 0.85 * Math.PI);
-      g.strokePath();
-    } else {
-      ci(g, cx + side * 4.6, hy + 1.2, 1.7, "#3a2a20");
-      ci(g, cx + side * 7, hy + 4.2, 1.8, "#f5a0a0", 0.55);
-    }
-  }
-  // ngủ: mắt nhắm + zZ (vẽ riêng tư thế nằm ở drawSleeping)
-
-  // --- đạo cụ theo pose ---
+    f,
+    fem: gender === "female",
+    hair: HAIR[gender],
+    blink: pose === "idle" && f === 1,
+  };
+  if (dir === "left") drawSide(c);
+  else if (dir === "up") drawBack(c);
+  else drawFront(c);
   drawProp(g, pose, f, cx, ty, hy, dir);
 }
 
-function drawProp(g, pose, f, cx, ty, hy, dir) {
-  const down = dir === "down",
-    up = dir === "up";
-  if (pose === "water") {
-    const px = up ? cx : cx + 14,
-      py = up ? hy - 14 : ty + 8;
-    rr(g, px - 6, py, 12, 9, 3, "#5db6d4");
-    rr(g, px - 8, py - 2, 6, 3, 1.5, "#5db6d4");
+/* ---------- thân & chân dùng chung cho dáng nhìn trước / ngồi ---------- */
+function torsoFront(c, ty = c.ty) {
+  const { g, B, cx, fem } = c;
+  const sh = B.shoulder;
+  if (fem) {
+    poly(
+      g,
+      [
+        [cx - sh, ty + 1.6],
+        [cx - 4.2, ty - 0.2],
+        [cx + 4.2, ty - 0.2],
+        [cx + sh, ty + 1.6],
+        [cx + 5.7, ty + 5],
+        [cx + 4.6, ty + 9.2],
+        [cx - 4.6, ty + 9.2],
+        [cx - 5.7, ty + 5],
+      ],
+      SHIRT.female,
+    );
+    poly(
+      g,
+      [
+        [cx - 2.8, ty - 0.2],
+        [cx + 2.8, ty - 0.2],
+        [cx, ty + 3.4],
+      ],
+      SKIN,
+    ); // cổ áo
+    rr(g, cx + 2.6, ty + 2, 3, 7, 1.5, "#000", 0.06);
+    rr(g, cx - 5, ty + 8.4, 10, 2.2, 1, BELT); // thắt lưng
+  } else {
+    poly(
+      g,
+      [
+        [cx - sh, ty + 1.8],
+        [cx - 5.6, ty - 0.2],
+        [cx + 5.6, ty - 0.2],
+        [cx + sh, ty + 1.8],
+        [cx + 6.8, ty + B.torsoH],
+        [cx - 6.8, ty + B.torsoH],
+      ],
+      SHIRT.male,
+    );
+    rr(g, cx + 3, ty + 2, 3.6, 8, 1.5, "#000", 0.06);
+    rr(
+      g,
+      cx - 6.9,
+      ty + 8.6,
+      13.8,
+      B.torsoH - 8.6 + 1.4,
+      { bl: 2, br: 2 },
+      PANTS,
+    ); // yếm
+    rr(g, cx - 3.8, ty + 5.6, 7.6, 4, 1, PANTS);
+    poly(
+      g,
+      [
+        [cx - 6, ty + 0.2],
+        [cx - 3.6, ty + 0.2],
+        [cx - 2.4, ty + 6.2],
+        [cx - 4.4, ty + 6.2],
+      ],
+      PANTS,
+    );
+    poly(
+      g,
+      [
+        [cx + 6, ty + 0.2],
+        [cx + 3.6, ty + 0.2],
+        [cx + 2.4, ty + 6.2],
+        [cx + 4.4, ty + 6.2],
+      ],
+      PANTS,
+    );
+    ci(g, cx - 3.2, ty + 6.4, 0.7, "#f5c542");
+    ci(g, cx + 3.2, ty + 6.4, 0.7, "#f5c542");
+  }
+}
+
+function drawFront(c) {
+  const { g, B, cx, by, legH, ty, hy, walk, fem, hair, pose, f } = c;
+  const sh = B.shoulder;
+  if (fem) rr(g, cx - 7.6, hy - 1, 15.2, ty + 10.5 - hy, 4, hair); // tóc dài phía sau
+
+  // chân (nhấc chân khi bước)
+  const legCol = fem ? SKIN : PANTS;
+  for (const s of [-1, 1]) {
+    const lift = Math.max(0, s * -walk) * 2.4;
+    const x = s < 0 ? cx - 0.6 - B.legW : cx + 0.6;
+    rr(g, x, by - legH, B.legW, legH - lift, 2, legCol);
+    rr(g, x - 0.6, by - 4.2 - lift, B.legW + 1.2, 4.4, 2, BOOT);
+  }
+
+  torsoFront(c);
+  if (fem) {
+    // váy chữ A + viền gấu
+    const hem = ty + 22;
+    poly(
+      g,
+      [
+        [cx - 4.8, ty + 10],
+        [cx + 4.8, ty + 10],
+        [cx + 8.6, hem],
+        [cx - 8.6, hem],
+      ],
+      PANTS,
+    );
+    poly(
+      g,
+      [
+        [cx + 2, ty + 10.5],
+        [cx + 4.8, ty + 10.5],
+        [cx + 8.6, hem],
+        [cx + 5, hem],
+      ],
+      "#000",
+      0.07,
+    );
+    rr(g, cx - 8.7, hem - 1.6, 17.4, 1.8, 0.9, PANTS_D);
+  }
+
+  // tay
+  const sx = sh - 0.5;
+  const sy = ty + 2.6;
+  if (FORWARD_POSES.has(pose)) {
+    const up = f % 2 === 0;
+    const R =
+      pose === "dig"
+        ? [
+            [cx + sx + 3, up ? ty - 1 : ty + 6.5],
+            [cx + 11.5, up ? ty - 6 : ty + 6],
+          ]
+        : [
+            [cx + sx + 2.6, ty + 7],
+            [cx + 10.4, ty + 9.4],
+          ];
+    arm(c, [cx - sx, sy], [cx - sx - 0.8, ty + 8.2], [cx - 3.6, ty + 11.4]);
+    arm(c, [cx + sx, sy], R[0], R[1]);
+  } else {
+    const sw = walk * 2.4;
+    arm(
+      c,
+      [cx - sx, sy],
+      [cx - sx - 0.7, ty + 8.4 + sw * 0.5],
+      [cx - sx - 1, ty + 14.8 + sw],
+    );
+    arm(
+      c,
+      [cx + sx, sy],
+      [cx + sx + 0.7, ty + 8.4 - sw * 0.5],
+      [cx + sx + 1, ty + 14.8 - sw],
+    );
+  }
+  headFront(c, cx, hy);
+}
+
+function headFront(c, cx, hy) {
+  const { g, fem, hair, blink } = c;
+  rr(g, cx - 2, hy + 4.4, 4, 6, 1.5, SKIN_SH); // cổ
+  ci(g, cx - 6, hy + 1.2, 1.5, SKIN_SH);
+  ci(g, cx + 6, hy + 1.2, 1.5, SKIN_SH); // tai
+  el(g, cx, hy, HEAD.rx, HEAD.ry, SKIN);
+
+  // tóc
+  if (fem) {
+    el(g, cx, hy - 2.4, 6.9, 5.8, hair);
+    poly(
+      g,
+      [
+        [cx - 6.9, hy + 2.4],
+        [cx - 7, hy - 3],
+        [cx - 4, hy - 6.9],
+        [cx + 4, hy - 6.9],
+        [cx + 7, hy - 3],
+        [cx + 6.9, hy + 2.4],
+        [cx + 5, hy - 0.8],
+        [cx + 1.2, hy - 2.8],
+        [cx - 2.6, hy - 2.2],
+        [cx - 5.4, hy - 0.2],
+      ],
+      hair,
+    );
+    rr(g, cx - 7.6, hy + 0.5, 3.2, 14.8, 1.6, hair); // hai lọn tóc rũ trước vai
+    rr(g, cx + 4.4, hy + 0.5, 3.2, 14.8, 1.6, hair);
+  } else {
+    el(g, cx, hy - 3.4, 6.9, 4.6, hair);
+    poly(
+      g,
+      [
+        [cx - 6.7, hy - 0.8],
+        [cx - 6.2, hy - 5],
+        [cx - 2, hy - 6.8],
+        [cx + 2, hy - 6.8],
+        [cx + 6.2, hy - 5],
+        [cx + 6.7, hy - 0.8],
+        [cx + 5.6, hy - 2.7],
+        [cx + 2, hy - 3.6],
+        [cx - 1.5, hy - 2.7],
+        [cx - 4, hy - 3.6],
+        [cx - 5.6, hy - 1.4],
+      ],
+      hair,
+    );
+    rr(g, cx - 6.9, hy - 3, 1.6, 4.4, 0.8, hair); // tóc mai
+    rr(g, cx + 5.3, hy - 3, 1.6, 4.4, 0.8, hair);
+  }
+  el(g, cx - 2.2, hy - 5.4, 2.6, 0.9, "#fff", 0.16); // ánh tóc
+
+  // mặt
+  const ey = hy + 1.6;
+  if (blink) {
     ln(
       g,
       [
-        [px + 6, py + 2],
-        [px + 11, py - 1],
+        [cx - 4.2, ey],
+        [cx - 1.6, ey],
+      ],
+      "#4a3121",
+      1.2,
+    );
+    ln(
+      g,
+      [
+        [cx + 1.6, ey],
+        [cx + 4.2, ey],
+      ],
+      "#4a3121",
+      1.2,
+    );
+  } else {
+    el(g, cx - 2.9, ey, 1.2, 1.6, "#3a2a20");
+    el(g, cx + 2.9, ey, 1.2, 1.6, "#3a2a20");
+    ci(g, cx - 2.5, ey - 0.6, 0.45, "#fff");
+    ci(g, cx + 3.3, ey - 0.6, 0.45, "#fff");
+  }
+  if (!fem) {
+    ln(
+      g,
+      [
+        [cx - 4.2, hy - 0.6],
+        [cx - 1.8, hy - 0.9],
+      ],
+      "#3a2a20",
+      0.9,
+      0.8,
+    ); // lông mày
+    ln(
+      g,
+      [
+        [cx + 1.8, hy - 0.9],
+        [cx + 4.2, hy - 0.6],
+      ],
+      "#3a2a20",
+      0.9,
+      0.8,
+    );
+  }
+  ci(g, cx, hy + 3, 0.6, SKIN_SH); // mũi
+  ci(g, cx - 4.3, hy + 3.4, 1.4, "#f5a0a0", 0.5);
+  ci(g, cx + 4.3, hy + 3.4, 1.4, "#f5a0a0", 0.5);
+  g.lineStyle(1.1, "#b06a4a", 1);
+  g.beginPath();
+  g.arc(cx, hy + 3.9, 1.7, 0.2 * Math.PI, 0.8 * Math.PI);
+  g.strokePath();
+}
+
+function drawBack(c) {
+  const { g, B, cx, by, legH, ty, hy, walk, fem, hair } = c;
+  const sh = B.shoulder;
+  const legCol = fem ? SKIN : PANTS;
+  for (const s of [-1, 1]) {
+    const lift = Math.max(0, s * -walk) * 2.4;
+    const x = s < 0 ? cx - 0.6 - B.legW : cx + 0.6;
+    rr(g, x, by - legH, B.legW, legH - lift, 2, legCol);
+    rr(g, x - 0.6, by - 4.2 - lift, B.legW + 1.2, 4.4, 2, BOOT);
+  }
+  // thân (không có bib / cổ áo)
+  if (fem) {
+    poly(
+      g,
+      [
+        [cx - sh, ty + 1.6],
+        [cx - 4.2, ty - 0.2],
+        [cx + 4.2, ty - 0.2],
+        [cx + sh, ty + 1.6],
+        [cx + 5.4, ty + 5],
+        [cx + 4.6, ty + 9.2],
+        [cx - 4.6, ty + 9.2],
+        [cx - 5.4, ty + 5],
+      ],
+      SHIRT.female,
+    );
+    rr(g, cx - 5, ty + 8.4, 10, 2.2, 1, BELT);
+    const hem = ty + 22;
+    poly(
+      g,
+      [
+        [cx - 4.8, ty + 10],
+        [cx + 4.8, ty + 10],
+        [cx + 8.6, hem],
+        [cx - 8.6, hem],
+      ],
+      PANTS,
+    );
+    rr(g, cx - 8.7, hem - 1.6, 17.4, 1.8, 0.9, PANTS_D);
+  } else {
+    poly(
+      g,
+      [
+        [cx - sh, ty + 1.8],
+        [cx - 5.6, ty - 0.2],
+        [cx + 5.6, ty - 0.2],
+        [cx + sh, ty + 1.8],
+        [cx + 6.8, ty + B.torsoH],
+        [cx - 6.8, ty + B.torsoH],
+      ],
+      SHIRT.male,
+    );
+    rr(
+      g,
+      cx - 6.9,
+      ty + 8.6,
+      13.8,
+      B.torsoH - 8.6 + 1.4,
+      { bl: 2, br: 2 },
+      PANTS,
+    );
+    poly(
+      g,
+      [
+        [cx - 6, ty + 0.2],
+        [cx - 3.8, ty + 0.2],
+        [cx - 2.2, ty + 9],
+        [cx - 4.4, ty + 9],
+      ],
+      PANTS,
+    );
+    poly(
+      g,
+      [
+        [cx + 6, ty + 0.2],
+        [cx + 3.8, ty + 0.2],
+        [cx + 2.2, ty + 9],
+        [cx + 4.4, ty + 9],
+      ],
+      PANTS,
+    );
+  }
+  const sx = sh - 0.5,
+    sy = ty + 2.6,
+    sw = walk * 2.4;
+  arm(
+    c,
+    [cx - sx, sy],
+    [cx - sx - 0.7, ty + 8.4 + sw * 0.5],
+    [cx - sx - 1, ty + 14.8 + sw],
+  );
+  arm(
+    c,
+    [cx + sx, sy],
+    [cx + sx + 0.7, ty + 8.4 - sw * 0.5],
+    [cx + sx + 1, ty + 14.8 - sw],
+  );
+
+  rr(g, cx - 2, hy + 4.4, 4, 6, 1.5, SKIN_SH);
+  el(g, cx, hy, HEAD.rx, HEAD.ry, SKIN);
+  el(g, cx, hy - 0.8, 6.9, 7.2, hair);
+  if (fem) {
+    rr(g, cx - 6.8, hy + 1, 13.6, ty + 11.5 - hy, 5, hair); // tóc dài xoã sau lưng
+    rr(g, cx - 0.8, hy + 4, 1.6, ty + 6 - hy, 0.8, "#000", 0.1);
+  } else {
+    rr(g, cx - 5.6, hy + 2.4, 11.2, 3.4, 1.7, hair); // gáy
+  }
+  el(g, cx - 2, hy - 4.6, 2.6, 0.9, "#fff", 0.16);
+}
+
+function drawSide(c) {
+  const { g, B, cx, by, legH, ty, hy, walk, fem, hair, pose, f, blink } = c;
+  const legCol = fem ? SKIN : PANTS,
+    legColFar = fem ? SKIN_SH : PANTS_D;
+  const dx = walk * 3.6;
+  const sy = ty + 2.8;
+  const forward = FORWARD_POSES.has(pose);
+  const aSwing = forward ? 0 : walk * 3.8;
+
+  // tay xa
+  if (forward) arm(c, [cx, sy], [cx - 3, ty + 7.5], [cx - 7, ty + 10.5], true);
+  else
+    arm(
+      c,
+      [cx, sy],
+      [cx + aSwing * 0.5, ty + 8.6],
+      [cx + aSwing, ty + 14.6],
+      true,
+    );
+
+  if (fem) rr(g, cx + 0.5, hy - 1, 7, ty + 10.5 - hy, 3.5, hair); // tóc dài sau lưng
+
+  // chân xa rồi chân gần (mũi giày hướng về phía trước = bên trái)
+  const leg = (off, col, boot, lift) => {
+    const x = cx - B.legW / 2 + off;
+    rr(g, x, by - legH, B.legW, legH - lift, 2, col);
+    rr(g, x - 2.4, by - 4.2 - lift, B.legW + 3, 4.4, 2, boot);
+  };
+  leg(-dx * 0.85, legColFar, BOOT_D, Math.max(0, dx) * 0.35);
+  leg(dx, legCol, BOOT, Math.max(0, -dx) * 0.35);
+
+  // thân
+  if (fem) {
+    poly(
+      g,
+      [
+        [cx - 3.8, ty + 1.6],
+        [cx - 2.4, ty - 0.2],
+        [cx + 2.6, ty - 0.2],
+        [cx + 3.8, ty + 1.6],
+        [cx + 3.2, ty + 9.2],
+        [cx - 3.2, ty + 9.2],
+      ],
+      SHIRT.female,
+    );
+    el(g, cx - 3.5, ty + 4.8, 1.5, 2.2, SHIRT.female);
+    rr(g, cx - 3.6, ty + 8.4, 7.2, 2.2, 1, BELT);
+    const hem = ty + 22;
+    poly(
+      g,
+      [
+        [cx - 3.4, ty + 10],
+        [cx + 3.4, ty + 10],
+        [cx + 6.6, hem],
+        [cx - 6.6, hem],
+      ],
+      PANTS,
+    );
+    rr(g, cx - 6.7, hem - 1.6, 13.4, 1.8, 0.9, PANTS_D);
+  } else {
+    poly(
+      g,
+      [
+        [cx - 5, ty + 1.8],
+        [cx - 3, ty - 0.2],
+        [cx + 3.4, ty - 0.2],
+        [cx + 5.2, ty + 2],
+        [cx + 4.8, ty + B.torsoH],
+        [cx - 4.8, ty + B.torsoH],
+      ],
+      SHIRT.male,
+    );
+    rr(
+      g,
+      cx - 4.9,
+      ty + 8.6,
+      9.8,
+      B.torsoH - 8.6 + 1.4,
+      { bl: 2, br: 2 },
+      PANTS,
+    );
+    rr(g, cx - 1.4, ty + 0.4, 2.8, 9, 1.2, PANTS); // dây yếm
+    ci(g, cx - 3.2, ty + 6.6, 0.7, "#f5c542");
+  }
+
+  // tay gần
+  if (forward) arm(c, [cx, sy], [cx - 5, ty + 6.6], [cx - 9.6, ty + 9]);
+  else
+    arm(c, [cx, sy], [cx - aSwing * 0.5, ty + 8.6], [cx - aSwing, ty + 14.6]);
+
+  // cổ + đầu (mặt hướng trái)
+  rr(g, cx - 2, hy + 4.4, 4, 6, 1.5, SKIN_SH);
+  el(g, cx - 0.5, hy, HEAD.rx, HEAD.ry, SKIN);
+  el(g, cx - 6.4, hy + 2, 1.1, 1, SKIN); // mũi
+  el(g, cx + 1.4, hy - 1.6, 6.2, 6.4, hair); // tóc sau + đỉnh
+  el(g, cx - 0.5, hy - 3.2, 6.4, 4, hair);
+  poly(
+    g,
+    [
+      [cx - 6.5, hy - 0.8],
+      [cx - 5.8, hy - 4.6],
+      [cx - 2, hy - 6.8],
+      [cx + 2, hy - 6.4],
+      [cx + 1, hy - 2],
+      [cx - 1.5, hy - 1.8],
+      [cx - 4, hy - 2.8],
+    ],
+    hair,
+  );
+  if (!fem) el(g, cx + 1.8, hy + 1.6, 1.2, 1.7, SKIN_SH); // tai
+  el(g, cx - 2.2, hy - 5.2, 2.4, 0.9, "#fff", 0.16);
+  if (blink)
+    ln(
+      g,
+      [
+        [cx - 4.6, hy + 1],
+        [cx - 2.4, hy + 1],
+      ],
+      "#4a3121",
+      1.2,
+    );
+  else {
+    el(g, cx - 3.4, hy + 1, 1.2, 1.6, "#3a2a20");
+    ci(g, cx - 3.0, hy + 0.4, 0.45, "#fff");
+  }
+  if (!fem)
+    ln(
+      g,
+      [
+        [cx - 4.6, hy - 0.5],
+        [cx - 2.4, hy - 0.8],
+      ],
+      "#3a2a20",
+      0.9,
+      0.8,
+    );
+  ci(g, cx - 3.6, hy + 3.4, 1.4, "#f5a0a0", 0.5);
+  ln(
+    g,
+    [
+      [cx - 5.7, hy + 4.4],
+      [cx - 4.4, hy + 4.5],
+    ],
+    "#b06a4a",
+    1.1,
+  );
+}
+
+/* ---------- đạo cụ: x đối xứng theo hướng (trái = -1) ---------- */
+function drawProp(g, pose, f, cx, ty, hy, dir) {
+  const up = dir === "up";
+  const sx = dir === "left" ? -1 : 1;
+  // hình chữ nhật theo toạ độ đã nhân dấu: dx là mép gần thân, w là bề rộng
+  const rx = (dx, y, w, h, r, c) =>
+    rr(g, sx > 0 ? cx + dx : cx - dx - w, y, w, h, r, c);
+  const X = (dx) => cx + sx * dx;
+  if (pose === "water") {
+    const px = up ? 0 : 11,
+      py = up ? hy - 14 : ty + 8;
+    rx(px - 6, py, 12, 9, 3, "#5db6d4");
+    rx(px - 8, py - 2, 6, 3, 1.5, "#5db6d4");
+    ln(
+      g,
+      [
+        [X(px + 6), py + 2],
+        [X(px + 10), py - 1],
       ],
       "#5db6d4",
       3,
     );
-    ci(g, px + 11, py - 1, 2, "#4a9ab5");
+    ci(g, X(px + 10), py - 1, 2, "#4a9ab5");
     if (f % 2 === 1) {
-      ci(g, px + 12, py + 4, 1.5, "#8fd4e8");
-      ci(g, px + 10, py + 7, 1.3, "#8fd4e8");
-      ci(g, px + 13, py + 9, 1.2, "#8fd4e8");
+      ci(g, X(px + 11), py + 4, 1.5, "#8fd4e8");
+      ci(g, X(px + 9), py + 7, 1.3, "#8fd4e8");
+      ci(g, X(px + 12), py + 9, 1.2, "#8fd4e8");
     }
   } else if (pose === "dig") {
-    const upSwing = f % 2 === 0;
-    const hx = cx + 10,
-      hy1 = upSwing ? ty - 16 : ty + 2;
+    const swing = f % 2 === 0;
+    const hx = 10,
+      hy1 = swing ? ty - 16 : ty + 2;
     ln(
       g,
       [
-        [hx, hy1],
-        [hx + (upSwing ? 4 : -2), hy1 + 16],
+        [X(hx), hy1],
+        [X(hx + (swing ? 4 : -2)), hy1 + 16],
       ],
       "#8a5a3a",
       3.2,
     );
-    rr(g, hx + (upSwing ? 2 : -6), hy1 + 14, 8, 5, 2, "#9aa3b2");
+    rx(swing ? hx + 2 : hx - 6, hy1 + 14, 8, 5, 2, "#9aa3b2");
   } else if (pose === "harvest") {
-    if (f % 2 === 0) {
-      ci(g, cx + (dir === "left" ? -14 : 14), ty + 12, 4, "#e8543f");
-    }
+    if (f % 2 === 0) ci(g, X(14), ty + 12, 4, "#e8543f");
   } else if (pose === "feed") {
-    const px = cx + (down ? 0 : 12),
+    const px = dir === "down" ? 0 : 12,
       py = ty + 12;
-    el(g, px, py + 3, 6, 3, "#c9a06a");
-    el(g, px, py + 1, 4.5, 2, "#8a6a4a");
-    ci(g, px - 1.5, py, 1.2, "#f2a154");
-    ci(g, px + 1.5, py - 0.5, 1.2, "#f2a154");
+    el(g, X(px), py + 3, 6, 3, "#c9a06a");
+    el(g, X(px), py + 1, 4.5, 2, "#8a6a4a");
+    ci(g, X(px - 1.5), py, 1.2, "#f2a154");
+    ci(g, X(px + 1.5), py - 0.5, 1.2, "#f2a154");
   } else if (pose === "pet") {
     if (f % 2 === 1) {
-      ci(g, cx + 12, ty - 2, 2.6, "#ff8aa0");
-      ci(g, cx + 15, ty - 2, 2.6, "#ff8aa0");
+      ci(g, X(12), ty - 2, 2.6, "#ff8aa0");
+      ci(g, X(15), ty - 2, 2.6, "#ff8aa0");
     }
   } else if (pose === "cook") {
-    const px = cx + 14,
+    const px = 11,
       py = ty + 8;
-    ci(g, px, py + 3, 6, "#5c626e");
-    ci(g, px, py + 2, 4.5, "#3a3f47");
+    ci(g, X(px), py + 3, 6, "#5c626e");
+    ci(g, X(px), py + 2, 4.5, "#3a3f47");
     ln(
       g,
       [
-        [px + 5, py + 1],
-        [px + 12, py - 3],
+        [X(px + 5), py + 1],
+        [X(px + 11), py - 3],
       ],
       "#8a5a3a",
       2.6,
     );
     if (f % 2 === 1) {
-      ci(g, px - 2, py - 5, 1.4, "#fff", 0.7);
-      ci(g, px + 2, py - 8, 1.8, "#fff", 0.6);
+      ci(g, X(px - 2), py - 5, 1.4, "#fff", 0.7);
+      ci(g, X(px + 2), py - 8, 1.8, "#fff", 0.6);
     }
   }
 }
 
 function drawSleeping(g, gender) {
-  // tư thế nằm ngang
-  const cy = 40;
+  // tư thế nằm ngang, đầu gối trên gối
+  const cy = 40,
+    hair = HAIR[gender];
   el(g, 24, 50, 20, 4, "#000", 0.12);
-  rr(g, 8, cy - 4, 32, 14, 7, "#a8c686"); // chăn
-  rr(g, 8, cy - 4, 32, 5, { tl: 7, tr: 7, bl: 0, br: 0 }, "#94b876");
-  ci(g, 13, cy - 6, 8.5, SKIN); // đầu
-  g.fillStyle(HAIR[gender], 1);
-  g.fillCircle(11.5, cy - 8.5, 8.5);
-  ci(g, 15.5, cy - 4.5, 3.2, SKIN);
+  rr(g, 2, cy - 11, 17, 12, 5, "#f4efe6"); // gối
+  if (gender === "female") el(g, 7.5, cy - 1.5, 6, 4, hair); // tóc xoã trên gối
+  rr(g, 10, cy - 4, 30, 14, 7, "#a8c686"); // chăn
+  rr(g, 10, cy - 4, 30, 5, { tl: 7, tr: 7, bl: 0, br: 0 }, "#94b876");
+  el(g, 12, cy - 5.5, 6.2, 6.6, SKIN); // đầu
+  el(g, 11, cy - 8, 6.6, 4.6, hair);
+  poly(
+    g,
+    [
+      [5.6, cy - 6],
+      [6.4, cy - 9.8],
+      [11, cy - 12],
+      [16, cy - 10],
+      [17.6, cy - 6.4],
+      [14, cy - 8.6],
+      [9.5, cy - 8.2],
+    ],
+    hair,
+  );
   ln(
     g,
     [
-      [14.5, cy - 4],
-      [17, cy - 4],
+      [13.2, cy - 4.8],
+      [16, cy - 4.8],
     ],
     "#4a3121",
-    1.3,
+    1.2,
   ); // mắt nhắm
-  // chữ z
+  ci(g, 15, cy - 2.2, 1.4, "#f5a0a0", 0.5);
   ln(
     g,
     [
@@ -313,29 +774,49 @@ function drawSleeping(g, gender) {
 }
 
 function drawSitting(g, gender) {
-  const cx = 24,
-    fy = 50;
-  el(g, cx, fy + 2, 16, 4, "#000", 0.12);
-  rr(g, cx - 10, fy - 8, 20, 8, 4, PANTS); // đùi
-  rr(g, cx - 10, fy - 3, 8, 6, 3, BOOT);
-  rr(g, cx + 2, fy - 3, 8, 6, 3, BOOT);
-  rr(g, cx - 9, fy - 24, 18, 17, 5, SHIRT[gender]);
-  rr(g, cx - 9, fy - 15, 18, 7, { bl: 4, br: 4 }, PANTS);
-  rr(g, cx - 12, fy - 21, 5, 12, 2.5, SHIRT[gender]);
-  rr(g, cx + 7, fy - 21, 5, 12, 2.5, SHIRT[gender]);
-  ci(g, cx - 9.5, fy - 9, 2.8, SKIN);
-  ci(g, cx + 9.5, fy - 9, 2.8, SKIN);
-  ci(g, cx, fy - 33, 10.5, SKIN);
-  g.fillStyle(HAIR[gender], 1);
-  g.fillCircle(cx, fy - 36.2, 10.6);
-  ci(g, cx - 3.6, fy - 31.8, 1.7, "#3a2a20");
-  ci(g, cx + 3.6, fy - 31.8, 1.7, "#3a2a20");
-  ci(g, cx - 6.2, fy - 28.8, 2, "#f5a0a0", 0.55);
-  ci(g, cx + 6.2, fy - 28.8, 2, "#f5a0a0", 0.55);
-  if (gender === "female") {
-    rr(g, cx - 12.5, fy - 35, 5, 14, 2.5, HAIR[gender]);
-    rr(g, cx + 7.5, fy - 35, 5, 14, 2.5, HAIR[gender]);
+  // ngồi nhìn thẳng: thân thẳng, đùi thu ngắn, cẳng chân thả xuống
+  const c = {
+    g,
+    gender,
+    B: BODY[gender],
+    cx: 24,
+    fem: gender === "female",
+    hair: HAIR[gender],
+    blink: false,
+  };
+  const { B, cx, fem } = c;
+  const fy = 50;
+  const ty = fy - 9 - B.torsoH;
+  const hy = ty - 8.4;
+  const legCol = fem ? SKIN : PANTS;
+  el(g, cx, fy + 2, 15, 3.6, "#000", 0.12);
+  if (fem) rr(g, cx - 7.6, hy - 1, 15.2, ty + 10.5 - hy, 4, c.hair);
+  for (const s of [-1, 1]) {
+    const x = s < 0 ? cx - 0.8 - B.legW : cx + 0.8;
+    rr(g, x, fy - 6, B.legW, 8, 2, legCol);
+    rr(g, x - 0.6, fy - 1.5, B.legW + 1.2, 4.6, 2, BOOT);
   }
+  if (fem) {
+    poly(
+      g,
+      [
+        [cx - 5, ty + 9],
+        [cx + 5, ty + 9],
+        [cx + 8.4, fy - 6],
+        [cx - 8.4, fy - 6],
+      ],
+      PANTS,
+    );
+    rr(g, cx - 8.5, fy - 7.6, 17, 1.8, 0.9, PANTS_D);
+  } else {
+    rr(g, cx - 7, fy - 12, 14, 7, 3, PANTS);
+  }
+  torsoFront(c, ty);
+  const sx = B.shoulder - 0.5,
+    sy = ty + 2.6;
+  arm(c, [cx - sx, sy], [cx - sx - 1.2, ty + 9], [cx - 4.8, ty + 14.2]);
+  arm(c, [cx + sx, sy], [cx + sx + 1.2, ty + 9], [cx + 4.8, ty + 14.2]);
+  headFront(c, cx, hy);
 }
 
 /* ================= THÚ CƯNG ================= */
