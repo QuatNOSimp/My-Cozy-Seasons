@@ -50,8 +50,10 @@ export class HouseScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, ROOM_W, ROOM_H);
     this.cameras.main.setBackgroundColor("#241c16");
     this.buildRoom();
-    const spawn =
-      this.entry === "stairs" ? { x: 560, y: 468 } : { x: 200, y: 492 };
+    // Tầng 2: lỗ cầu thang xuống chiếm vùng y≈482–546 nên spawn phải đứng phía trên nó
+    const stairsSpawn =
+      this.floor === 2 ? { x: 560, y: 450 } : { x: 560, y: 468 };
+    const spawn = this.entry === "stairs" ? stairsSpawn : { x: 200, y: 492 };
     this.player = new Player(
       this,
       spawn.x,
@@ -207,7 +209,7 @@ export class HouseScene extends Phaser.Scene {
     });
     this.put("furn_plant", 38, 508);
     this.put("furn_lamp", 330, 150, { cw: 20 });
-    this.put("furn_stairs", 606, 494);
+    this.put("furn_stairs", 628, 494);
     this.addInteractable({
       x: 606,
       y: 520,
@@ -255,11 +257,16 @@ export class HouseScene extends Phaser.Scene {
       onInteract: () => this.sitAt(470, 420),
     });
     this.put("furn_plant", 620, 420);
-    this.put("furn_stairs", 606, 494);
+    this.put("furn_stairs_down", 606, 494, {
+      flat: true,
+      cw: 84,
+      ch: 64,
+      coy: 20,
+    });
     this.addInteractable({
       x: 606,
-      y: 520,
-      radius: 60,
+      y: 500,
+      radius: 62,
       getPrompt: () => ({ text: "Xuống tầng 1", icon: "icon_star" }),
       onInteract: () => {
         SFX.blip();
