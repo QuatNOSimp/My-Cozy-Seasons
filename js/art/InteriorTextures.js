@@ -12,6 +12,13 @@ const el = (g, x, y, rx, ry, c, a = 1) => {
   g.fillStyle(c, a);
   g.fillEllipse(x, y, rx * 2, ry * 2);
 };
+const poly = (g, pts, c, a = 1) => {
+  g.fillStyle(c, a);
+  g.fillPoints(
+    pts.map(([x, y]) => ({ x, y })),
+    true,
+  );
+};
 const ln = (g, pts, c, w = 2, a = 1) => {
   g.lineStyle(w, c, a);
   g.beginPath();
@@ -481,34 +488,150 @@ export function generateInteriorTextures(scene) {
     g.fillTriangle(10, 36, 30, 36, 20, 12);
     ci(g, 20, 24, 12, "#fff3c9", 0.25);
   });
+  // Cầu thang LÊN (tầng 1): nhìn nghiêng, bậc cao dần về bên phải, có lan can dốc
   bake("furn_stairs", 100, 116, (g) => {
-    el(g, 50, 112, 48, 5, "#000", 0.13);
-    for (let i = 0; i < 5; i++) {
-      const y = 96 - i * 19,
-        x = 8 + i * 4;
-      rr(g, x, y, 88 - i * 8, 16, 3, i % 2 ? "#b98a5e" : "#a07a4a");
-      rr(g, x, y, 88 - i * 8, 5, 3, "#c99a6a");
-    }
-    for (let i = 0; i < 5; i++)
+    const STEPS = 6,
+      RUN = 14,
+      RISE = 13,
+      X0 = 8,
+      BASE = 110;
+    el(g, 50, 112, 48, 5, "#000", 0.14);
+    // khối bậc: mỗi cột cao dần, mặt đứng (riser) tối, mặt bậc (tread) sáng
+    for (let i = 0; i < STEPS; i++) {
+      const x = X0 + i * RUN,
+        top = BASE - (i + 1) * RISE;
       rr(
         g,
-        12 + i * 4,
-        12 - i * 0 + i * 0 + 84 - i * 19,
-        5,
-        16 + i * 0,
-        2,
-        "#8a6248",
+        x,
+        top,
+        RUN + (i === STEPS - 1 ? 2 : 0),
+        BASE - top,
+        1,
+        i % 2 ? "#a47a4c" : "#98703f",
       );
+      rr(g, x - 2, top, RUN + 2, 4, 1.5, "#d9ad7c"); // tread + nosing nhô ra
+      rr(g, x - 2, top + 3, RUN + 2, 1.4, 0.7, "#a9794a"); // bóng dưới tread
+      rr(g, x, top + 4.4, 1.6, BASE - top - 4.4, 0.8, "#000", 0.1); // cạnh riser
+    }
+    // dầm đỡ chéo (stringer) dưới cùng, chạy theo mũi bậc
+    poly(
+      g,
+      [
+        [X0 - 2, BASE],
+        [X0 - 2, BASE - 6],
+        [X0 + STEPS * RUN, BASE - STEPS * RISE + 12],
+        [X0 + STEPS * RUN, BASE],
+      ],
+      "#6a4a32",
+      0.55,
+    );
+    // lan can: trụ + tay vịn chạy song song với dốc
+    const hx0 = X0 + 1,
+      hy0 = BASE - RISE - 22,
+      hx1 = X0 + STEPS * RUN - 6,
+      hy1 = BASE - STEPS * RISE - 20;
+    for (let i = 0; i < STEPS; i += 2) {
+      const px = X0 + i * RUN + 6,
+        t = (px - hx0) / (hx1 - hx0),
+        railY = hy0 + (hy1 - hy0) * t,
+        stepTop = BASE - (i + 1) * RISE;
+      rr(g, px - 1.5, railY, 3, stepTop - railY + 1, 1, "#7a5538");
+    }
     ln(
       g,
       [
-        [10, 92],
-        [90, 16],
+        [hx0, hy0],
+        [hx1, hy1],
       ],
-      "#8a6248",
-      5,
+      "#5a3e28",
+      4.5,
     );
-    ci(g, 90, 14, 5, "#8a6248");
+    ln(
+      g,
+      [
+        [hx0, hy0 - 1],
+        [hx1, hy1 - 1],
+      ],
+      "#9a7048",
+      1.6,
+    );
+    ci(g, hx0, hy0 - 1, 4, "#5a3e28"); // trụ đầu cầu thang
+    // mũi tên chỉ hướng lên trên mặt bậc thấp
+    poly(
+      g,
+      [
+        [X0 + 3, BASE - 7],
+        [X0 + 10, BASE - 7],
+        [X0 + 6.5, BASE - 13],
+      ],
+      "#fff3c9",
+      0.0,
+    );
+  });
+
+  // Cầu thang XUỐNG (tầng 2): lỗ sàn có khung gỗ, bậc thấp dần và tối dần vào trong
+  bake("furn_stairs_down", 100, 116, (g) => {
+    const L = 8,
+      T = 46,
+      W = 84,
+      H = 64;
+    el(g, 50, 112, 48, 5, "#000", 0.13);
+    rr(g, L - 4, T - 4, W + 8, H + 8, 4, "#8a6248"); // khung viền sàn
+    rr(g, L, T, W, H, 2, "#2a1d14"); // hố tối
+    const treads = ["#d9ad7c", "#c39a68", "#a9814f", "#8a6a40", "#6a502f"];
+    for (let i = 0; i < treads.length; i++) {
+      const inset = 3 + i * 4,
+        y = T + 4 + i * 11;
+      rr(g, L + inset, y, W - inset * 2, 8, 1.5, treads[i]); // mặt bậc
+      rr(
+        g,
+        L + inset,
+        y + 6.4,
+        W - inset * 2,
+        1.8,
+        0.9,
+        "#000",
+        0.18 + i * 0.04,
+      ); // bóng dưới
+    }
+    // vệt tối cuối hố (cầu thang đi xuống tầng dưới)
+    rr(g, L + 22, T + H - 8, W - 44, 6, 3, "#000", 0.45);
+    // thành cầu thang hai bên + lan can ở mép gần
+    rr(g, L, T, 4, H, 2, "#6a4a32");
+    rr(g, L + W - 4, T, 4, H, 2, "#6a4a32");
+    for (const px of [L + 1, L + W - 1]) {
+      rr(g, px - 2, T + H - 26, 4, 28, 1.5, "#7a5538");
+      ci(g, px, T + H - 27, 3.4, "#5a3e28");
+    }
+    ln(
+      g,
+      [
+        [L + 1, T + H - 24],
+        [L + 1, T + 6],
+      ],
+      "#5a3e28",
+      3.4,
+    );
+    ln(
+      g,
+      [
+        [L + W - 1, T + H - 24],
+        [L + W - 1, T + 6],
+      ],
+      "#5a3e28",
+      3.4,
+    );
+    // mũi tên chỉ hướng xuống ở mép gần
+    poly(
+      g,
+      [
+        [44, T + H + 8],
+        [56, T + H + 8],
+        [50, T + H + 14],
+      ],
+      "#fff3c9",
+      0.0,
+    );
   });
 
   /* ---- nhà kính ---- */
